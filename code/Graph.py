@@ -34,65 +34,6 @@ class Graph:
 
 		return Graph(nodes)
 
-	def erdos_reyni(n, p, prob_on = .5):
-		"""Creates an Erdos Reyni random graph with parameters n, p.
-		Each node has prob_on chance of being a 1."""
-		nodes = []
-		for _ in range(n):
-			val = np.random.binomial(1, prob_on)
-			nodes.append(Graph.Node(val, None))
-
-		for node_index in range(n):
-			edge_list = []
-			for edge_index in range(n):
-				if node_index == edge_index:
-					continue #don't want self loops.
-				p_coin_flip = np.random.binomial(1, p)
-				if p_coin_flip:
-					#means we're adding an edge
-					edge_list.append(nodes[edge_index])
-			nodes[node_index].in_edges = edge_list
-
-		return Graph(nodes)
-
-	def stochastic_block_model(community_alloc, edge_matrix, prob_on = .5):
-		"""
-		community_alloc: list of r numbers indicating how many nodes should
-		be in each community. Only need numbers since actual node assignments
-		are arbitrary.
-		edge_matrix: rxr matrix (list of lists) that gives the prob of edges between
-		groups i and j.
-		"""
-		cache = {}
-		def community_number(node):
-			if node in cache: return cache[node]
-			for community, nodes in communities.items():
-				if node in nodes:
-					cache[node] = community
-					return community
-
-		nodes, communities = [], {}
-		#adds nodes to communities based on the given sizes.
-		for i in range(len(community_alloc)):
-			communities[i] = []
-			for _ in range(community_alloc[i]):
-				val = np.random.binomial(1, prob_on)
-				node = Graph.Node(val, None)
-				communities[i].append(node)
-				nodes.append(node)
-
-		for node1 in nodes:
-			edge_list = []
-			for node2 in nodes:
-				if node1 == node2: continue
-				comm1, comm2 = community_number(node1), community_number(node2)
-				p_coin_flip = np.random.binomial(1, edge_matrix[comm1][comm2])
-				if p_coin_flip:
-					edge_list.append(node2)
-			node1.in_edges = edge_list
-
-		return Graph(nodes)
-
 	def state(self):
 		"""Returns the current state of the graph as a list of node states."""
 		return [node.val for node in self.nodes]

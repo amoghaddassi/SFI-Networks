@@ -1,6 +1,8 @@
 import numpy as np
 
 from Graph import *
+from random_graphs import * 
+
 """
 -- Each dynamics function takes a node as an argument.
 
@@ -23,8 +25,6 @@ def majority_rule(node, threshold = .5, random = False):
 def random_majority_rule(node, threshold = .5):
 	"""Runs random majority rule, can be passed into an update function."""
 	majority_rule(node, threshold, True)
-
-
 
 def asynch_update(graph, dynamic, iterations=1, print_states = False):
 	"""Performs an asynchronus update in the order of nodes
