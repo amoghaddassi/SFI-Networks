@@ -2,6 +2,7 @@
 from Graph import *
 
 import numpy as np
+import random
 
 def erdos_reyni(n, p, prob_on = .5):
 	"""Creates an Erdos Reyni random graph with parameters n, p.
@@ -126,3 +127,25 @@ def small_world(N, k, beta):
 	
 	return base_graph
 
+def fully_connected(N):
+	"""Returns a fully connected graph with N nodes."""
+	nodes = [Graph.Node(0, None) for _ in range(N)]
+	for node in nodes:
+		node.in_edges = [n for n in nodes if n != node]
+	return Graph(nodes)
+
+def random_edges(N, e):
+	"""Returns a graph with N nodes and e edges where the
+	edges are placed randomly. The edges are undirected and are
+	encoded in base N during the implemenation."""
+	nodes = [Graph.Node(0, []) for _ in range(N)]
+	#min (0, 1) --> 0 + 1*N
+	#max (N-1, N) --> N-1 + N*N
+	edges = random.sample(range(N, N**2 + N), e)
+	for edge in edges:
+		#converts edge from base 10 to a 2 dig number (i, j) in base N
+		i = edge % N
+		j = edge // N
+		nodes[i].in_edges.append(nodes[j])
+		nodes[j].in_edges.append(nodes[i])
+	return Graph(nodes)
