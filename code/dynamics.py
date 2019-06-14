@@ -1,6 +1,8 @@
 import numpy as np
 
-from Graph import *
+from graphs.Graph import *
+from graphs.HopfieldGraph import *
+from graphs.KuramotoGraph import *
 from random_graphs import * 
 
 """

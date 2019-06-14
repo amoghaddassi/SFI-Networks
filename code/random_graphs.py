@@ -1,5 +1,7 @@
 """File for functions that make random graphs using the Graph.py class."""
-from Graph import *
+from graphs.Graph import *
+from graphs.HopfieldGraph import *
+from graphs.KuramotoGraph import *
 
 import numpy as np
 import random
@@ -137,15 +139,21 @@ def fully_connected(N):
 def random_edges(N, e):
 	"""Returns a graph with N nodes and e edges where the
 	edges are placed randomly. The edges are undirected and are
-	encoded in base N during the implemenation."""
+	sampled uniformly from the lower triangle of the adj. matrix."""
+	rows = list(range(N)) #potential values for i in (i, j)
+	#normalize rows to get the probs of selecting each i
+	row_probs = [rows[i] / sum(rows) for i in range(len(rows))]
+	edges = set()
+	while len(edges) < e:
+		#samples row according to row probs
+		row = np.random.choice(rows, p = row_probs)
+		col = np.random.choice(range(row))
+		edges.add((row, col))
+	#now builds the graph with N nodes and given edges
 	nodes = [Graph.Node(0, []) for _ in range(N)]
-	#min (0, 1) --> 0 + 1*N
-	#max (N-1, N) --> N-1 + N*N
-	edges = random.sample(range(N, N**2 + N), e)
 	for edge in edges:
-		#converts edge from base 10 to a 2 dig number (i, j) in base N
-		i = edge % N
-		j = edge // N
-		nodes[i].in_edges.append(nodes[j])
-		nodes[j].in_edges.append(nodes[i])
+		row, col = edge[0], edge[1]
+		nodes[row].in_edges.append(nodes[col])
+		nodes[col].in_edges.append(nodes[row])
 	return Graph(nodes)
+
