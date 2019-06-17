@@ -1,4 +1,4 @@
-from Graph import *
+from graphs.Graph import *
 
 import math
 

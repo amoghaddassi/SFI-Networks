@@ -157,3 +157,18 @@ def random_edges(N, e):
 		nodes[col].in_edges.append(nodes[row])
 	return Graph(nodes)
 
+def random_hopfield(N, M, graph = None):
+	"""Returns a trained Hopfield network of N nodes where the M
+	stored states are chosen randomly. Can provide a graph architecture
+	if want something diff from fully connected network."""
+	def random_state():
+		#TODO: Update this so that there is some correlation between the states, seems more realistic
+		#look at what people actually do.
+		return [np.random.binomial(1, .5) for _ in range(N)]
+	
+	if not graph:
+		graph = fully_connected(N)
+	states = [random_state() for _ in range(M)]
+	hopfield_graph = HopfieldGraph(graph, states)
+	hopfield_graph.train()
+	return hopfield_graph

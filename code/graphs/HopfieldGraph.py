@@ -1,4 +1,6 @@
-from Graph import *
+from graphs.Graph import *
+
+import numpy as np
 
 class HopfieldGraph(Graph):
 	"""Given an existing graph topology with N nodes, and some set of orientations
@@ -49,6 +51,11 @@ class HopfieldGraph(Graph):
 		all the nodes to the appropriate states."""
 		for i in range(len(state)):
 			self.nodes[i].val = state[i]
+
+	def random_config(self, p = .5):
+		"""Sets the states of nodes randomly, p is prob of a node being on."""
+		state = [np.random.binomial(1, p) for _ in range(len(self.nodes))]
+		self.set_node_vals(state)
 
 	def dynamic(self, node):
 		"""Given some node, updates its value according to the Hopfield rule."""
