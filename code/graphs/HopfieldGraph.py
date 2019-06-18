@@ -29,22 +29,26 @@ class HopfieldGraph(Graph):
 	def set_weight_matrix(self):
 		"""Makes an edge weight matrix with all values initialized to 0."""
 		self.weights = [[0 for _ in range(len(self.nodes))] for _ in range(len(self.nodes))]
+		self.full_weights = [[0 for _ in range(len(self.nodes))] for _ in range(len(self.nodes))]
 
 	def train(self):
 		"""Trains the edge weights of the network on self.states using
 		the Hopfield training rule."""
 		for i in range(len(self.nodes)):
 			for j in range(i): # only train the lower triangle of the weights matrix
+				
+				weight = 0
+				for state in self.stored_states:
+					weight += (2*state[i] - 1) * (2*state[j] - 1)
 				if self.adj_matrix[i][j] == 0:
 					#means there's no edge so we don't train anything.
 					self.weights[i][j] = 0
 					self.weights[j][i] = 0
-					continue
-				weight = 0
-				for state in self.stored_states:
-					weight += (2*state[i] - 1) * (2*state[j] - 1)
-				self.weights[i][j] = weight
-				self.weights[j][i] = weight
+				else:
+					self.weights[i][j] = weight
+					self.weights[j][i] = weight
+				self.full_weights[i][j] = weight
+				self.full_weights[j][i] = weight
 
 	def set_node_vals(self, state):
 		"""Given some orientation for all the node values, sets
