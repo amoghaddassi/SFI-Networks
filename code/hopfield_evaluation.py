@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.misc import comb
 import csv
+import random
 
 from graphs.Graph import *
 from graphs.HopfieldGraph import *
@@ -49,30 +50,65 @@ def variation_of_information(A, B):
 	hab = joint_bit_entropy(A, B)
 	return 2*hab - ha - hb
 
-def hopfield_performance(hopfield_graph, runs = 100):
-	"""Define the performance of a hopfield network on a individual run as the min
-	variation of information between a steady state (found by running the network from a random IC)
-	and a stored state in the network. Total performance is the average of all runs."""
+def vi_performance_metric(hopfield_graph):
+	"""Initializes the hopfield graph to a random state, finds a fixed point, and returns 
+	the min variation of information between the fixed point and a stored state."""
 	def bit_list_to_string(lst):
 		"""Converts a list of bits to a string."""
 		n = ""
 		for b in lst:
 			n += str(b)
 		return n
-	
-	total_perf = 0 #sum of all the variation of information
-	for _ in range(runs):
-		hopfield_graph.random_config()
-		steady_state = fixed_point(hopfield_graph, hopfield_graph.dynamic)
-		if not steady_state: continue
-		steady_state_str = bit_list_to_string(steady_state)
-		total_perf += min([variation_of_information(steady_state_str, bit_list_to_string(stored_state))
+	hopfield_graph.random_config()
+	steady_state = fixed_point(hopfield_graph, hopfield_graph.dynamic)
+	if not steady_state: return vi_performance_metric(hopfield_graph) #repeats if no state is found
+	steady_state_str = bit_list_to_string(steady_state)
+	return min([variation_of_information(steady_state_str, bit_list_to_string(stored_state))
 			for stored_state in hopfield_graph.stored_states])
-		
+
+def overlap_performance_metric(hopfield_graph, stability = True):
+	"""Measures the overlap performance metric for each of the stored states and returns the average.
+	If stability is true, runs the graph from the stored state at each iteration. If false, measures 
+	retrievability by running the graph from a 25% maligned state."""
+	def flip_porition(state, p):
+		"""Flips p portion of bits in state."""
+		num_to_flip = int(p * len(state)) #rounds up how many to flip
+		pos_to_flip = random.sample(range(len(state)), num_to_flip) #chooses which indicies to flip
+		#flips the bits
+		res = state.copy()
+		for i in pos_to_flip:
+			res[i] = 1 - res[i]
+		return res
+
+	perf = 0
+	for state in hopfield_graph.stored_states:
+		if stability:
+			hopfield_graph.set_node_vals(state)
+		else:
+			hopfield_graph.set_node_vals(flip_porition(state, .25))
+		steady_state = fixed_point(hopfield_graph, hopfield_graph.dynamic)
+		state_perf = 0
+		for i, j in zip(steady_state, state):
+			state_perf += (2 * i - 1) * (2 * j - 1)
+		perf += state_perf / len(state)
+	return perf / len(hopfield_graph.stored_states)
+
+def stability_performance_metric(hopfield_graph):
+	return overlap_performance_metric(hopfield_graph)
+
+def retrievability_performance_metric(hopfield_graph):
+	return overlap_performance_metric(hopfield_graph, False)
+
+def hopfield_performance(hopfield_graph, metric = vi_performance_metric, runs = 100):
+	"""Uses the metric function to get the performance of a graph on a single run, and 
+	returns the average metric over all runs."""
+	total_perf = 0
+	for _ in range(runs):
+		total_perf += metric(hopfield_graph)
 	return total_perf / runs
 
 def hopfield_perf_sim(N, num_stored_states, graph_model,runs_per_edge_count = 100,
-	edge_iterator=None, filepath = "data/", show_runs = True):
+	edge_iterator=None, filepath = "data/random_edges/", show_runs = True):
 	"""Outputs a csv with 2 columns: edge count, performance. Edge count refers
 	to the number of edges we place randomly in an N node graph built using graph_model. 
 	Performance refersto the constructed graph's performance when it is trained on 
@@ -81,16 +117,18 @@ def hopfield_perf_sim(N, num_stored_states, graph_model,runs_per_edge_count = 10
 	vary the edge counts during the simulation."""
 	if not edge_iterator:
 		edge_iterator = range(1, int(comb(N, 2) + 1))
-	data = [["edges", "perf"]]
+	data = [["edges", "variation_of_information", "retrievability", "stability"]]
 	for edge_count in edge_iterator:
 		for _ in range(runs_per_edge_count):
 			hop_graph = graph_model(N, num_stored_states, edge_count)
-			performance = hopfield_performance(hop_graph)
+			vi = hopfield_performance(hop_graph, metric = vi_performance_metric)
+			retrievability = hopfield_performance(hop_graph, metric = retrievability_performance_metric)
+			stability = hopfield_performance(hop_graph, metric = stability_performance_metric)
 			if show_runs:
-				print([edge_count, performance])
-			data.append([edge_count, performance])		
-
-	filename = filepath + "random_edge_null_" + str(N) + "_" + str(num_stored_states) + "_" + str(runs_per_edge_count) +".csv"
+				print([edge_count, vi, retrievability, stability])
+			data.append([edge_count, vi, retrievability, stability])		
+	#NAMING PROTOCOL: nodes_states_runs in folder of correct model
+	filename = filepath + str(N) + "_" + str(num_stored_states) + "_" + str(runs_per_edge_count) +".csv"
 	with open(filename, 'w') as csvFile:
 	    writer = csv.writer(csvFile)
 	    writer.writerows(data)
