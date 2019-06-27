@@ -32,7 +32,9 @@ def asynch_update(graph, dynamic, iterations=1, print_states = False):
 	"""Performs an asynchronus update in the order of nodes
 	using the given dynamics function."""
 	for _ in range(iterations):
-		for node in graph.nodes:
+		shuffled_nodes = graph.nodes.copy()
+		random.shuffle(shuffled_nodes)
+		for node in shuffled_nodes:
 			dynamic(node)
 		if print_states:
 			print(graph.state())

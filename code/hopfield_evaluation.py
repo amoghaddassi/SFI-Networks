@@ -1,8 +1,10 @@
 import numpy as np
 from scipy.misc import comb
+from scipy.stats import entropy
 import csv
 import random
 import time
+import networkx as nx
 
 from graphs.Graph import *
 from graphs.HopfieldGraph import *
@@ -11,6 +13,7 @@ from graphs.KuramotoGraph import *
 from random_graphs import *
 from dynamics import *
 from bit_string_helpers import *
+from hopfield_models import *
 
 def match_coefficient(hopfield_graph, i, j):
 	"""For a given hopfield graph and nodes i and j, computes the matching coefficient
@@ -79,68 +82,6 @@ def runtime(hopfield_graph, runs = 100):
 		total_time += time.time() - start
 	return total_time / runs
 
-def hopfield_perf_sim(N, num_stored_states, graph_model,runs_per_edge_count = 100,
-	edge_iterator=None, filepath = "data/random_edges/vary_edges/", show_runs = True,
-	metrics = ["variation_of_information", "runtime"]):
-	"""Outputs a csv with 2 columns: edge count, performance. Edge count refers
-	to the number of edges we place randomly in an N node graph built using graph_model. 
-	Performance refersto the constructed graph's performance when it is trained on 
-	num_stored_states randomly generated stored states. graph_model is a function that returns
-	a hopfield graph with parameters N, num_stored_states, and edge_count. edge_iterator is how we
-	vary the edge counts during the simulation."""
-	if not edge_iterator:
-		edge_iterator = range(1, int(comb(N, 2) + 1))
-	data = [["edges"] + metrics]
-	for edge_count in edge_iterator:
-		for _ in range(runs_per_edge_count):
-			hop_graph = graph_model(N, num_stored_states, edge_count)
-			stats = [edge_count]
-			#computes all the metrics in metrics and adds to data
-			if "variation_of_information" in metrics:
-				vi = hopfield_performance(hop_graph, metric = vi_performance_metric)
-				stats.append(vi)
-			if "retrievability" in metrics:
-				retrievability = hopfield_performance(hop_graph, metric = retrievability_performance_metric)
-				stats.append(retrievability)
-			if "stability" in metrics:
-				stability = hopfield_performance(hop_graph, metric = stability_performance_metric)
-				stats.append(stability)
-			if "runtime" in metrics:
-				rt = runtime(hop_graph)
-				stats.append(rt)
-			if show_runs:
-				print(stats)
-			data.append(stats)		
-	#NAMING PROTOCOL: nodes_states_runs in folder of correct model
-	filename = filepath + str(N) + "_" + str(num_stored_states) + "_" + str(runs_per_edge_count) +".csv"
-	with open(filename, 'w') as csvFile:
-	    writer = csv.writer(csvFile)
-	    writer.writerows(data)
-	csvFile.close()
-
-def hopfield_match_coeff_sim(N, num_stored_states, num_edges, graph_model, 
-	runs = 100, filepath = "data/", show_runs = True):
-	"""Outputs a csv with 3 columns: in? (whether the edge is in the graph), match_coeff, edge_weight.
-	The sim will run runs amount of times for a fixed graph_model and output a row for each edge and run."""
-	match_coeff_data = [["in?", "match_coeff", "edge_weight"]]
-	for _ in range(runs):
-		hop_graph = graph_model(N, num_stored_states, num_edges)
-		for i in range(N):
-				for j in range(i):
-					in_graph = 1 if hop_graph.adj_matrix[i][j] == 1 else 0
-					match_coeff = match_coefficient(hop_graph, i, j)
-					edge_weight = hop_graph.full_weights[i][j]
-					if show_runs:
-						print([in_graph, match_coeff, edge_weight])
-					match_coeff_data.append([in_graph, match_coeff, edge_weight])
-	
-	filename = filepath + "random_edge_null_match_coeff_" + str(N) + "_" + str(num_stored_states) + "_" + str(runs) +".csv"
-	with open(filename, 'w') as csvFile:
-		writer = csv.writer(csvFile)
-		writer.writerows(match_coeff_data)
-	csvFile.close()
-
-#set of functions that can be passed in as graph_model to the above function
 def random_edges_for_sim(N, num_stored_states, edge_count):
 	g = random_edges(N, edge_count)
 	return random_hopfield(N, num_stored_states, g)
@@ -149,44 +90,6 @@ def pruned_edges_for_sim(N, num_stored_states, edge_count):
 	patterns = [random_state(N) for _ in range(num_stored_states)]
 	return pruned_hopfield(patterns, edge_count)
 
-def hopfield_related_states_sim(N, num_stored_states, graph_model, num_edges,runs_per_p = 100,
-	p_iterator = range(0, 51, 5), filepath = "data/random_edges/vary_states/", show_runs = True,
-	metrics = ["variation_of_information"], save_data = True):
-	"""For a graph model with a fixed number of nodes and edges, computes each metric runs_per_p times
-	for each p in p_iterator. p will be the p parameter passed into related states when we generate our patterns
-	for storage. graph_model takes a set of patterns and number of edges and returns a trained hop graph"""
-	data = [["Mutual Information of States"] + metrics]
-	for p in p_iterator:
-		for _ in range(runs_per_p):
-			patterns = related_states(N, num_stored_states, p / 100) # div by 100 since iterate over percentages
-			hop_graph = graph_model(patterns, num_edges)
-			stats = [avg_variation_of_information(patterns)]
-			#computes all the metrics in metrics and adds to data
-			if "variation_of_information" in metrics:
-				vi = hopfield_performance(hop_graph, metric = vi_performance_metric)
-				stats.append(vi)
-			if "retrievability" in metrics:
-				retrievability = hopfield_performance(hop_graph, metric = retrievability_performance_metric)
-				stats.append(retrievability)
-			if "stability" in metrics:
-				stability = hopfield_performance(hop_graph, metric = stability_performance_metric)
-				stats.append(stability)
-			if "runtime" in metrics:
-				rt = runtime(hop_graph)
-				stats.append(rt)
-			if show_runs:
-				print(stats)
-			data.append(stats)
-	#NAMING PROTOCOL: nodes_states_runs in folder of correct model
-	if save_data:
-		filename = filepath + str(N) + "_" + str(num_stored_states) + "_" + str(num_edges) + "_" + str(runs_per_p) +".csv"
-		with open(filename, 'w') as csvFile:
-		    writer = csv.writer(csvFile)
-		    writer.writerows(data)
-		csvFile.close()
-	else: return data
-
-#graph_models for the function above
 def random_edges_for_p_sim(patterns, edges):
 	g = random_edges(len(patterns[0]), edges)
 	hop_graph = HopfieldGraph(g, patterns)
@@ -196,56 +99,73 @@ def random_edges_for_p_sim(patterns, edges):
 def pruned_edges_for_p_sim(patterns, edges):
 	return pruned_hopfield(patterns, edges)
 
-def hopfield_edges_states_sim(N, num_stored_states, graph_model, runs = 1000,
-	filepath = "data/random_edges/vary_edges_states/", show_runs = True, 
-	metrics = ["variation_of_information"]):
-	"""For each run, randomly samples an edge count and gets perf data as we vary the relatedness
-	of states from the related_states_sim. graph_model is the same as for that function."""
-	data = [["edges", "Mutual Information of States"] + metrics]
-	for _ in range(runs):
-		edges = random.sample(range(1, int(comb(N, 2) + 1)), 1)[0]
-		run_data = hopfield_related_states_sim(N, num_stored_states, graph_model, edges, runs_per_p = 10,
-											metrics = metrics, save_data = False, show_runs = show_runs)
-		#adds the edge value to everything in run_data
-		run_data_with_edges = [[edges] + d for d in run_data]
-		data.extend(run_data_with_edges[1:])
-	filename = filepath + str(N) + "_" + str(num_stored_states) + "_" + str(runs) +".csv"
-	with open(filename, 'w') as csvFile:
-		writer = csv.writer(csvFile)
-		writer.writerows(data)
-	csvFile.close()
+def node_groups(hopfield_graph):
+	"""Given a graph, returns a dict where the key is the pattern and the value is a list of nodes
+	that belong to that pattern group."""
+	groups = dict()
+	#iterate over all nodes and collect the pattern group
+	for i in range(len(hopfield_graph.nodes)):
+		pattern = []
+		for state in hopfield_graph.stored_states:
+			pattern.append(state[i])
+		pattern_str = bit_list_to_string(pattern)
+		#if the ndoes pattern or flipped pattern is already in the dict, add to appropriate bucket.
+		if pattern_str in groups:
+			groups[pattern_str].append(hopfield_graph.nodes[i])
+		elif flip_bits(pattern_str) in groups:
+			groups[flip_bits(pattern_str)].append(hopfield_graph.nodes[i])
+		#else make a new bucket
+		else:
+			groups[pattern_str] = [hopfield_graph.nodes[i]]
+	return groups
 
-def hopfield_rewiring_sim(graph, runs_per_beta = 10, beta_iterator = None, 
-	filepath = "data/pruned_edges/rewire/", metrics = ["retrievability"], show_runs = True):
-	if not beta_iterator:
-		beta_iterator = range(0, 250, 5)
-	data = [["Rewire Probability"] + metrics]
-	for beta in beta_iterator:
-		for _ in range(runs_per_beta):
-			hop_graph = graph.copy() #makes a copy since rewiring is destructive
-			rewired_hopfield(hop_graph, beta / 1000)
-			stats = [beta]
-			#computes all the metrics in metrics and adds to data
-			if "variation_of_information" in metrics:
-				vi = hopfield_performance(hop_graph, metric = vi_performance_metric)
-				stats.append(vi)
-			if "retrievability" in metrics:
-				retrievability = hopfield_performance(hop_graph, metric = retrievability_performance_metric)
-				stats.append(retrievability)
-			if "stability" in metrics:
-				stability = hopfield_performance(hop_graph, metric = stability_performance_metric)
-				stats.append(stability)
-			if "runtime" in metrics:
-				rt = runtime(hop_graph)
-				stats.append(rt)
-			if show_runs:
-				print(stats)
-			data.append(stats)
+def clustering_matrix(hopfield_graph, norm_group_size = False):
+	"""Given a Hopfield graph, returns the matrix (2^M-1 * 2^M-1) of probabilities of an edge
+	existing between any two groups. Define the groups as usual. If norm_group_size, will normalize
+	all probabilities wrt to the group size of each cluster."""
+	group_cache = dict()
+	def get_group(node):
+		"""Returns the group of the given node assuming groups has been defined."""
+		if node not in group_cache:
+			for group, nodes in groups.items():
+				if node in nodes:
+					group_cache[node] = group
+					break
+		return group_cache[node]
 
-	#NAMING PROTOCOL: nodes_states_edges_runs in folder of correct model
-	filename = filepath + str(len(graph.nodes)) + "_" + str(len(graph.stored_states)) + "_" + str(graph.num_edges()) + "_" + str(runs_per_beta) +".csv"
-	with open(filename, 'w') as csvFile:
-	    writer = csv.writer(csvFile)
-	    writer.writerows(data)
-	csvFile.close()
+	groups = node_groups(hopfield_graph)
+	cluster_mat = dict()
+	for group, nodes in groups.items(): #iterates over all groups and counts all edges to other groups.
+		edge_probs = {g: 0 for g in groups.keys()}
+		for node in nodes: #counts all the edges and tallys which group the other node is in.
+			for adj in node.in_edges:
+				edge_probs[get_group(adj)] += 1
+		total_count = sum(list(edge_probs.values()))
+		if norm_group_size:
+			row = {group: count / len(groups[group]) for group, count in edge_probs.items()} #norms counts by group size
+			row = {group: normed / sum(row.values()) for group, normed in row.items()}
+		elif total_count == 0:
+			row = {group: 0 for group, count in edge_probs.items()}
+		else:
+			row = {group: count / total_count for group, count in edge_probs.items()} #converts counts to probs
+		cluster_mat[group] = row
+	return cluster_mat
 
+def small_world_coeff(hopfield_graph):
+	"""Returns the small world coefficient omega (Lrand / L - C/Clatt) of the given graph."""
+	nx_graph = hopfield_graph.to_networkx()
+	N = len(hopfield_graph.nodes)
+	#computes path length stats
+	L = nx.average_shortest_path_length(nx_graph)
+	random_graph = random_edges(N, hopfield_graph.num_edges())
+	random_hop_graph = HopfieldGraph(random_graph, None)
+	Lrand = nx.average_shortest_path_length(random_hop_graph.to_networkx())
+	#computes clustering states
+	C = nx.clustering(nx_graph)
+	C = np.average(list(C.values())) #since clustering returns a dict of all nodes clustering coeffs
+	latt = ring_lattice(N, int(hopfield_graph.num_edges() * 2 / N))
+	latt_hop = HopfieldGraph(latt, None)
+	Clatt = nx.clustering(latt_hop.to_networkx())
+	Clatt = np.average(list(Clatt.values()))
+	#returns omega
+	return (Lrand / L) - (C / Clatt)

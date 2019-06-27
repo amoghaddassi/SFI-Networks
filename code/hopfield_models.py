@@ -23,7 +23,7 @@ def related_states(N, M, p):
 	for _ in range(M - 1):
 		states.append(flip_porition(seed, p))
 	return states
-	
+
 def states_from_dist(group_dist, N):
 	"""Given some distribution of groups (must be a multiple of 2) and some number of nodes N,
 	returns a set of patterns st the number of nodes in each cluster (based on orientations) follows
@@ -46,6 +46,15 @@ def states_from_dist(group_dist, N):
 			patterns[i].append(int(pattern[i]))
 	return patterns
 
+def random_dist(M):
+	"""Given a number of patterns, returns a random distribution to use to generate states."""
+	dist = []
+	for _ in range(int(2 ** (M - 1))):
+		dist.append(random.sample(range(100), 1)[0])
+	#normalize dist
+	dist = [d / sum(dist) for d in dist]
+	return dist
+
 def random_hopfield(N, M, graph = None):
 	"""Returns a trained Hopfield network of N nodes where the M
 	stored states are chosen randomly. Can provide a graph architecture
@@ -57,7 +66,7 @@ def random_hopfield(N, M, graph = None):
 	hopfield_graph.train()
 	return hopfield_graph
 
-def pruned_hopfield(patterns, edges):
+def pruned_hopfield(patterns, edges, graph = None):
 	"""Returns a trained Hopfield network that only has the edges highest weight
 	edges (by absolute value) after the network is trained on the patterns."""
 	class Entry:
@@ -71,18 +80,25 @@ def pruned_hopfield(patterns, edges):
 			return self.priority < other.priority
 
 	#first train the fully connect hopfield net on the patterns
-	N = len(patterns[0])
-	graph = fully_connected(N)
-	hop_net = HopfieldGraph(graph, patterns)
-	hop_net.train()
+	if graph == None:
+		N = len(patterns[0])
+		graph = fully_connected(N)
+		hop_net = HopfieldGraph(graph, patterns)
+		hop_net.train()
+	else:
+		hop_net = graph
 	#add all the edges to a priority queue (only looking at bottom porition of adj. mat.)
 	pq = []
 	for i in range(N):
 		for j in range(i):
 			weight = hop_net.weights[i][j]
-			heapq.heappush(pq, Entry((i, j), abs(weight)))
+			if hop_net.adj_matrix[i][j] == 0: #only adds edges that exist to pq
+				continue
+			pq.append(Entry((i, j), abs(weight)))
+	random.shuffle(pq) #randomizes order before heapification
+	heapq.heapify(pq) #heapifies for popping smallest edges
 	#remove the N - e lowest priority edges and set their weights to be 0 in hop_net
-	for _ in range(int(comb(N, 2) - edges)):
+	for _ in range(hop_net.num_edges() - edges):
 		min_edge = heapq.heappop(pq)
 		edge = min_edge.item
 		hop_net.weights[edge[0]][edge[1]] = 0
@@ -134,13 +150,13 @@ def rewire(i, j, hopfield_graph):
 	remove_edge(j, i)
 	k = random.sample(range(len(hopfield_graph.nodes)), 1)[0]
 	#commented code lines correspond to using the fancy weighting model or not.
-	#while i == k or hopfield_graph.adj_matrix[i][k] != 0 or zero_edge(i, k):
-	while i == k or hopfield_graph.adj_matrix[i][k] != 0:
+	while i == k or hopfield_graph.adj_matrix[i][k] != 0 or zero_edge(i, k):
+	#while i == k or hopfield_graph.adj_matrix[i][k] != 0:
 		k = random.sample(range(len(hopfield_graph.nodes)), 1)[0]
-	#add_edge(i, k, weight)
-	#add_edge(k, i, weight)
-	add_edge(i, k)
-	add_edge(k, i)
+	add_edge(i, k, weight)
+	add_edge(k, i, weight)
+	#add_edge(i, k)
+	#add_edge(k, i)
 
 def rewired_hopfield(hopfield_graph, rewire_prob):
 	"""Given some hopfield_graph, rewires each edge (same protocol as in Watts - 

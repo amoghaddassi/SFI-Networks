@@ -68,10 +68,6 @@ def metropolis_hastings(patterns, num_edges, fp_threshold = 20,
 		if curr_score > best_score:
 			best_score = curr_score
 			best_graph = hop_graph
-			away_from_best_count = 0
-		else:
-			away_from_best_count += 1
-
 		print(str(run_count) + ", " + str(curr_score))
 		run_count += 1
 	return best_graph

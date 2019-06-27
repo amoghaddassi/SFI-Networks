@@ -68,7 +68,7 @@ class HopfieldGraph(Graph):
 		for i in range(len(self.nodes)):
 			neighbors, weights = [], {}
 			for j in range(len(self.nodes)):
-				if self.weights[i][j] == 0: continue #means there's no edge to consider
+				if self.adj_matrix[i][j] == 0: continue #means there's no edge to consider
 				#adds j to i's neighbors and sets the correct weight
 				neighbors.append(self.nodes[j])
 				weights[self.nodes[j]] = self.weights[i][j]
@@ -101,7 +101,7 @@ class HopfieldGraph(Graph):
 			self.nodes[node_index].val = 1
 		else:
 			self.nodes[node_index].val = 0
-
+			
 	def to_networkx(self):
 		"""Returns an unweighted networkx graph with the same topology as self."""
 		N = len(self.nodes)
@@ -129,3 +129,8 @@ class HopfieldGraph(Graph):
 			nodes = nodes, adj_mat = copy.deepcopy(self.adj_matrix))
 		new_graph.train()
 		return new_graph
+
+	def degree_dist(self):
+		"""Returns a list of the degrees of all nodes."""
+		return [len(node.in_edges) for node in self.nodes]
+		
