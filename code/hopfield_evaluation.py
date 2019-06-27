@@ -153,19 +153,22 @@ def clustering_matrix(hopfield_graph, norm_group_size = False):
 
 def small_world_coeff(hopfield_graph):
 	"""Returns the small world coefficient omega (Lrand / L - C/Clatt) of the given graph."""
-	nx_graph = hopfield_graph.to_networkx()
-	N = len(hopfield_graph.nodes)
-	#computes path length stats
-	L = nx.average_shortest_path_length(nx_graph)
-	random_graph = random_edges(N, hopfield_graph.num_edges())
-	random_hop_graph = HopfieldGraph(random_graph, None)
-	Lrand = nx.average_shortest_path_length(random_hop_graph.to_networkx())
-	#computes clustering states
-	C = nx.clustering(nx_graph)
-	C = np.average(list(C.values())) #since clustering returns a dict of all nodes clustering coeffs
-	latt = ring_lattice(N, int(hopfield_graph.num_edges() * 2 / N))
-	latt_hop = HopfieldGraph(latt, None)
-	Clatt = nx.clustering(latt_hop.to_networkx())
-	Clatt = np.average(list(Clatt.values()))
-	#returns omega
-	return (Lrand / L) - (C / Clatt)
+	try:
+		nx_graph = hopfield_graph.to_networkx()
+		N = len(hopfield_graph.nodes)
+		#computes path length stats
+		L = nx.average_shortest_path_length(nx_graph)
+		random_graph = random_edges(N, hopfield_graph.num_edges())
+		random_hop_graph = HopfieldGraph(random_graph, None)
+		Lrand = nx.average_shortest_path_length(random_hop_graph.to_networkx())
+		#computes clustering states
+		C = nx.clustering(nx_graph)
+		C = np.average(list(C.values())) #since clustering returns a dict of all nodes clustering coeffs
+		latt = ring_lattice(N, int(hopfield_graph.num_edges() * 2 / N))
+		latt_hop = HopfieldGraph(latt, None)
+		Clatt = nx.clustering(latt_hop.to_networkx())
+		Clatt = np.average(list(Clatt.values()))
+		#returns omega
+		return (Lrand / L) - (C / Clatt)
+	except nx.exception.NetworkXError:
+		return -1 #for when the graph isn't connected
