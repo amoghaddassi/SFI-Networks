@@ -5,6 +5,7 @@ import csv
 import random
 import time
 import networkx as nx
+import heapq
 
 from graphs.Graph import *
 from graphs.HopfieldGraph import *
@@ -34,16 +35,19 @@ def vi_performance_metric(hopfield_graph):
 	return min([variation_of_information(steady_state_str, bit_list_to_string(stored_state))
 			for stored_state in hopfield_graph.stored_states])
 
-def overlap_performance_metric(hopfield_graph, stability = True, nonneg = False):
+def overlap_performance_metric(hopfield_graph, type = "stability", nonneg = False, p = .2):
 	"""Measures the overlap performance metric for each of the stored states and returns the average.
 	If stability is true, runs the graph from the stored state at each iteration. If false, measures 
-	retrievability by running the graph from a 25% maligned state."""
+	retrievability by running the graph from a 25% maligned state. p is percent to flip for high_deg."""
 	perf = 0
 	for state in hopfield_graph.stored_states:
-		if stability:
+		#flips some of the bits in the state according to the metric.
+		if type == "stability":
 			hopfield_graph.set_node_vals(state)
-		else:
-			hopfield_graph.set_node_vals(flip_porition(state, .25))
+		elif type == "retrievability":
+			hopfield_graph.set_node_vals(flip_porition(state, p))
+		elif type == "high_deg_errors":
+			hopfield_graph.set_node_vals(flip_high_deg(hopfield_graph, state, p))
 		steady_state = fixed_point(hopfield_graph, hopfield_graph.dynamic)
 		state_perf = 0
 		for i, j in zip(steady_state, state):
@@ -57,16 +61,19 @@ def overlap_performance_metric(hopfield_graph, stability = True, nonneg = False)
 def stability_performance_metric(hopfield_graph):
 	return overlap_performance_metric(hopfield_graph)
 
-def retrievability_performance_metric(hopfield_graph, nonneg = False):
-	return overlap_performance_metric(hopfield_graph, False, nonneg)
+def retrievability_performance_metric(hopfield_graph, nonneg = False, p = .25):
+	return overlap_performance_metric(hopfield_graph, "retrievability", nonneg, p = p)
 
-def hopfield_performance(hopfield_graph, metric = vi_performance_metric, runs = 100, nonneg = False):
+def high_degree_errors_performance_metric(hopfield_graph, nonneg = False, p = .15):
+	return overlap_performance_metric(hopfield_graph, "high_deg_errors", p = p)
+
+def hopfield_performance(hopfield_graph, metric = vi_performance_metric, runs = 100, nonneg = False, p = .2):
 	"""Uses the metric function to get the performance of a graph on a single run, and 
 	returns the average metric over all runs."""
 	total_perf = 0
 	for _ in range(runs):
-		if metric is retrievability_performance_metric:
-			total_perf += metric(hopfield_graph, nonneg = nonneg)
+		if metric is retrievability_performance_metric or metric is high_degree_errors_performance_metric:
+			total_perf += metric(hopfield_graph, nonneg = nonneg, p = p)
 		else:
 			total_perf += metric(hopfield_graph)
 	return total_perf / runs
@@ -172,3 +179,30 @@ def small_world_coeff(hopfield_graph):
 		return (Lrand / L) - (C / Clatt)
 	except nx.exception.NetworkXError:
 		return -1 #for when the graph isn't connected
+
+def flip_high_deg(hopfield_graph, state, portion_to_flip):
+	"""Returns a version of state, where the portion_to_flip highest degree
+	nodes in the hopfield_graph have been flipped."""
+	new_state = state.copy() #shouldn't destructively modify the state.
+	#now get the positions of the bits to flip.
+	class Entry:
+		"""Class to hold items in the priority queue. Each object has an item
+		which will be some int (representing the node's index) and a priority (the degree of the node). 
+		Compares the items solely on priority."""
+		def __init__(self, item, priority):
+			self.item = item
+			self.priority = priority
+		def __lt__(self, other):
+			return self.priority < other.priority
+	heap = []
+	deg_dist = hopfield_graph.degree_dist()
+	for i in range(len(deg_dist)):
+		node = Entry(i, -deg_dist[i]) #negate degree since this is a min pq
+		heapq.heappush(heap, node)
+	num_to_pop = int(portion_to_flip * len(deg_dist)) #number of nodes to flip
+	#flips that number of bits in new_state
+	for _ in range(num_to_pop):
+		highest_deg = heapq.heappop(heap).item #gets the index of the next highest deg node
+		new_state[highest_deg] = 1 - new_state[highest_deg] #flips that bit
+	return new_state
+
