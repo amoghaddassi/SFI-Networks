@@ -35,11 +35,12 @@ def vi_performance_metric(hopfield_graph):
 	return min([variation_of_information(steady_state_str, bit_list_to_string(stored_state))
 			for stored_state in hopfield_graph.stored_states])
 
-def overlap_performance_metric(hopfield_graph, type = "stability", nonneg = False, p = .2):
+def overlap_performance_metric(hopfield_graph, type = "stability", nonneg = False, p = .2, by_node = False):
 	"""Measures the overlap performance metric for each of the stored states and returns the average.
 	If stability is true, runs the graph from the stored state at each iteration. If false, measures 
-	retrievability by running the graph from a 25% maligned state. p is percent to flip for high_deg."""
-	perf = 0
+	retrievability by running the graph from a 25% maligned state. p is percent to flip for high_deg.
+	If by_node, will return the average performance for each node individually, instead of the average."""
+	perf = []
 	for state in hopfield_graph.stored_states:
 		#flips some of the bits in the state according to the metric.
 		if type == "stability":
@@ -49,14 +50,22 @@ def overlap_performance_metric(hopfield_graph, type = "stability", nonneg = Fals
 		elif type == "high_deg_errors":
 			hopfield_graph.set_node_vals(flip_high_deg(hopfield_graph, state, p))
 		steady_state = fixed_point(hopfield_graph, hopfield_graph.dynamic)
-		state_perf = 0
-		for i, j in zip(steady_state, state):
-			if nonneg:
-				state_perf += 1 if i == j else 0
+		state_perf = []
+		for i in range(len(state)):
+			if state[i] == steady_state[i]:
+				state_perf.append(1)
+			elif nonneg:
+				state_perf.append(0)
 			else:
-				state_perf += (2 * i - 1) * (2 * j - 1)
-		perf += state_perf / len(state)
-	return perf / len(hopfield_graph.stored_states)
+				state_perf.append(-1)
+		perf.append(state_perf)
+	#perf is now a 2d matrix where the ith col is the matching results of the ith node
+	np_arr = np.array(perf) #converts to numpy matrix to take columnwise mean
+	res = np.mean(np_arr, axis = 0)
+	if by_node:
+		return res #returns whole array if we want by node values
+	else:
+		return np.average(res) #returns average across all nodes otherwise
 
 def stability_performance_metric(hopfield_graph):
 	return overlap_performance_metric(hopfield_graph)
@@ -106,58 +115,6 @@ def random_edges_for_p_sim(patterns, edges):
 def pruned_edges_for_p_sim(patterns, edges):
 	return pruned_hopfield(patterns, edges)
 
-def node_groups(hopfield_graph):
-	"""Given a graph, returns a dict where the key is the pattern and the value is a list of nodes
-	that belong to that pattern group."""
-	groups = dict()
-	#iterate over all nodes and collect the pattern group
-	for i in range(len(hopfield_graph.nodes)):
-		pattern = []
-		for state in hopfield_graph.stored_states:
-			pattern.append(state[i])
-		pattern_str = bit_list_to_string(pattern)
-		#if the ndoes pattern or flipped pattern is already in the dict, add to appropriate bucket.
-		if pattern_str in groups:
-			groups[pattern_str].append(hopfield_graph.nodes[i])
-		elif flip_bits(pattern_str) in groups:
-			groups[flip_bits(pattern_str)].append(hopfield_graph.nodes[i])
-		#else make a new bucket
-		else:
-			groups[pattern_str] = [hopfield_graph.nodes[i]]
-	return groups
-
-def clustering_matrix(hopfield_graph, norm_group_size = False):
-	"""Given a Hopfield graph, returns the matrix (2^M-1 * 2^M-1) of probabilities of an edge
-	existing between any two groups. Define the groups as usual. If norm_group_size, will normalize
-	all probabilities wrt to the group size of each cluster."""
-	group_cache = dict()
-	def get_group(node):
-		"""Returns the group of the given node assuming groups has been defined."""
-		if node not in group_cache:
-			for group, nodes in groups.items():
-				if node in nodes:
-					group_cache[node] = group
-					break
-		return group_cache[node]
-
-	groups = node_groups(hopfield_graph)
-	cluster_mat = dict()
-	for group, nodes in groups.items(): #iterates over all groups and counts all edges to other groups.
-		edge_probs = {g: 0 for g in groups.keys()}
-		for node in nodes: #counts all the edges and tallys which group the other node is in.
-			for adj in node.in_edges:
-				edge_probs[get_group(adj)] += 1
-		total_count = sum(list(edge_probs.values()))
-		if norm_group_size:
-			row = {group: count / len(groups[group]) for group, count in edge_probs.items()} #norms counts by group size
-			row = {group: normed / sum(row.values()) for group, normed in row.items()}
-		elif total_count == 0:
-			row = {group: 0 for group, count in edge_probs.items()}
-		else:
-			row = {group: count / total_count for group, count in edge_probs.items()} #converts counts to probs
-		cluster_mat[group] = row
-	return cluster_mat
-
 def small_world_coeff(hopfield_graph):
 	"""Returns the small world coefficient omega (Lrand / L - C/Clatt) of the given graph."""
 	try:
@@ -205,4 +162,21 @@ def flip_high_deg(hopfield_graph, state, portion_to_flip):
 		highest_deg = heapq.heappop(heap).item #gets the index of the next highest deg node
 		new_state[highest_deg] = 1 - new_state[highest_deg] #flips that bit
 	return new_state
+
+def deg_perf_corr(nodes, edges, num_states,runs = 1000):
+	"""For a pruned graph model, gets the correlation between degree of a node and 
+	retrievability performance of that node over runs."""
+	corrs = []
+	states = [random_state(nodes) for _ in range(num_states)]
+	ph = pruned_hopfield(states, edges)
+	for i in range(runs):
+		perf = []
+		for _ in range(100):
+			run_perf = overlap_performance_metric(ph, 'retrievability', True, .25, True)
+			perf.append(run_perf)
+		perf = np.mean(np.array(perf), axis = 0) #sums over all perf runs
+		corr = np.corrcoef(perf, ph.degree_dist())[0][1]
+		corrs.append(corr)
+	return np.nanmean(corrs), np.nanstd(corrs)
+
 

@@ -4,6 +4,7 @@ from graphs.HopfieldGraph import *
 
 from bit_string_helpers import *
 from random_graphs import *
+from hopfield_evaluation import *
 
 import numpy as np
 import random
@@ -66,7 +67,7 @@ def random_hopfield(N, M, graph = None):
 	hopfield_graph.train()
 	return hopfield_graph
 
-def pruned_hopfield(patterns, edges, graph = None):
+def pruned_hopfield(patterns, edges, graph = None, shuffle = True):
 	"""Returns a trained Hopfield network that only has the edges highest weight
 	edges (by absolute value) after the network is trained on the patterns."""
 	class Entry:
@@ -95,7 +96,8 @@ def pruned_hopfield(patterns, edges, graph = None):
 			if hop_net.adj_matrix[i][j] == 0: #only adds edges that exist to pq
 				continue
 			pq.append(Entry((i, j), abs(weight)))
-	random.shuffle(pq) #randomizes order before heapification
+	if shuffle:
+		random.shuffle(pq) #randomizes order before heapification
 	heapq.heapify(pq) #heapifies for popping smallest edges
 	#remove the N - e lowest priority edges and set their weights to be 0 in hop_net
 	for _ in range(hop_net.num_edges() - edges):
@@ -169,4 +171,113 @@ def rewired_hopfield(hopfield_graph, rewire_prob):
 				rewire(i, j, hopfield_graph)
 	hopfield_graph.set_node_attributes() #adjusts the graph's nodes after the rewiring
 
+def node_groups(hopfield_graph):
+	"""Given a graph, returns a dict where the key is the pattern and the value is a list of nodes
+	that belong to that pattern group."""
+	groups = dict()
+	#iterate over all nodes and collect the pattern group
+	for i in range(len(hopfield_graph.nodes)):
+		pattern = []
+		for state in hopfield_graph.stored_states:
+			pattern.append(state[i])
+		pattern_str = bit_list_to_string(pattern)
+		#if the ndoes pattern or flipped pattern is already in the dict, add to appropriate bucket.
+		if pattern_str in groups:
+			groups[pattern_str].append(hopfield_graph.nodes[i])
+		elif flip_bits(pattern_str) in groups:
+			groups[flip_bits(pattern_str)].append(hopfield_graph.nodes[i])
+		#else make a new bucket
+		else:
+			groups[pattern_str] = [hopfield_graph.nodes[i]]
+	return groups
 
+def hopfield_sbm(edge_probs, states, num_edges):
+	"""edge_probs: dict of dicts where both have keys that are the group's orientation patterns
+	and values (in the inner dicts) that are the probabilities of making an edge between groups."""
+	def adjust_probs():
+		"""Changes edge_probs so that the expected number of edges is num_edges."""
+		#calculates the expected number of edges with current edge_probs
+		groups = node_groups(hop_graph)
+		expected_edges = 0
+		considered_pairs = set() #running collection of all bit string pairs considered
+		for str1 in edge_probs.keys():
+			for str2 in edge_probs.keys():
+				#if we've already considered this pair, skip to avoid double counting
+				if (str1, str2) in considered_pairs:
+					continue
+				#add the pair to considered_pairs
+				considered_pairs.add((str1, str2))
+				#expected edges for this group pairing is #(str1) * #(str2) * prob
+				groups_str1 = str1 if str1 in groups else flip_bits(str1)
+				groups_str2 = str2 if str2 in groups else flip_bits(str2)
+				expected_edges += len(groups[groups_str1]) * len(groups[groups_str2]) * edge_probs[str1][str2]
+		#adjusts all probs by multiplying by the ratio between num_edges and expected_edges
+		adjustment_ratio = 2 * num_edges / expected_edges #times by 2 bc we have undirected edges
+		#does this same style of iteration as above to adjust.
+		for str1 in edge_probs.keys():
+			for str2 in edge_probs.keys():
+				edge_probs[str1][str2] = adjustment_ratio * edge_probs[str1][str2]
+
+	N = len(states[0])
+	#Constructs hopfield graph with states that has no edges
+	nodes = [Graph.Node(0, []) for _ in range(N)]
+	graph = Graph(nodes)
+	hop_graph = HopfieldGraph(graph, states)
+	#Renormalizes edge_probs so that the expected number of edges will be num_edges
+	adjust_probs()
+	#For each node pair, construct and train an edge with the appropriate probability
+	patterns_cache = dict() #caches patterns of nodes to avoid n^2 runtime
+	for i in range(N):
+		for j in range(i):
+			#gets the patterns of i and j so we know which groups they're in
+			if i not in patterns_cache:
+				i_pattern = bit_list_to_string([state[i] for state in states])
+				i_pattern = i_pattern if i_pattern in edge_probs else flip_bits(i_pattern)
+				patterns_cache[i] = i_pattern
+			if j not in patterns_cache:
+				j_pattern = bit_list_to_string([state[j] for state in states])
+				j_pattern = j_pattern if j_pattern in edge_probs else flip_bits(j_pattern)
+				patterns_cache[j] = j_pattern
+			#gets prob of an edge and flips a p coin
+			prob = edge_probs[patterns_cache[i]][patterns_cache[j]]
+			#TODO: change to uniform (0, 1)
+			p_coin_flip = 1 if np.random.uniform() < prob else 0
+			if p_coin_flip: #means we're making the edge
+				hop_graph.adj_matrix[i][j] = 1
+				hop_graph.adj_matrix[j][i] = 1
+	#trains the graph according to the updated adj matrix
+	hop_graph.train()
+	return hop_graph
+
+def clustering_matrix(hopfield_graph):
+	"""Given a Hopfield graph, returns the matrix (2^M-1 * 2^M-1) of probabilities of an edge
+	existing between any two groups. Define the groups as usual. If norm_group_size, will normalize
+	all probabilities wrt to the group size of each cluster."""
+	group_cache = dict()
+	def get_group(node):
+		"""Returns the group of the given node assuming groups has been defined."""
+		if node not in group_cache:
+			for group, nodes in groups.items():
+				if node in nodes:
+					group_cache[node] = group
+					break
+		return group_cache[node]
+
+	groups = node_groups(hopfield_graph)
+	cluster_mat = dict()
+	for group, nodes in groups.items(): #iterates over all groups and counts all edges to other groups.
+		edge_probs = {g: 0 for g in groups.keys()}
+		for node in nodes: #counts all the edges and tallys which group the other node is in.
+			for adj in node.in_edges:
+				edge_probs[get_group(adj)] += 1
+		#makes each count a percent of edges that could possibly exist between the two groups
+		row = {} 
+		for other_group, count in edge_probs.items():
+			other_size = len(groups[other_group])
+			if other_group == group:
+				possible_edges = other_size * (other_size - 1)
+			else:
+				possible_edges = other_size * len(nodes)
+			row[other_group] = count / possible_edges
+		cluster_mat[group] = row
+	return cluster_mat

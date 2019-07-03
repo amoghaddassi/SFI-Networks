@@ -113,6 +113,17 @@ class HopfieldGraph(Graph):
 					g.add_edge(i, j)
 		return g
 
+	def binarize_weights(self, val = 1):
+		"""For all non-zero edges, changes weight to be sign(trained edge) * val."""
+		for i in range(len(self.nodes)):
+			for j in range(i):
+				if self.weights[i][j]:
+					weight = np.sign(self.weights[i][j]) * val
+					self.weights[i][j] = weight
+					self.weights[j][i] = weight
+		self.set_node_attributes()
+
+
 	def num_edges(self):
 		"""Returns the number of edges in the network."""
 		count = 0

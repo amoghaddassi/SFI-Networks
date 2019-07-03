@@ -74,6 +74,3 @@ def connected_component_VI(hopfield_graph):
 		res[str(component)] = avg_variation_of_information(states)
 	return res
 
-
-
-
