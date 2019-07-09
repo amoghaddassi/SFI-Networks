@@ -120,7 +120,6 @@ def rewire(i, j, hopfield_graph):
 		hopfield_graph.adj_matrix[j][i] = 0
 		hopfield_graph.weights[i][j] = 0
 		hopfield_graph.weights[j][i] = 0
-		return abs(weight)
 
 	def add_edge(i, j, w = None):
 		"""Makes the edge (i, j) with weight w."""
@@ -148,17 +147,15 @@ def rewire(i, j, hopfield_graph):
 		hopfield_graph.train_edge(i, j)
 		return zero
 
-	weight = remove_edge(i, j)
+	remove_edge(i, j)
 	remove_edge(j, i)
 	k = random.sample(range(len(hopfield_graph.nodes)), 1)[0]
 	#commented code lines correspond to using the fancy weighting model or not.
 	while i == k or hopfield_graph.adj_matrix[i][k] != 0 or zero_edge(i, k):
 	#while i == k or hopfield_graph.adj_matrix[i][k] != 0:
 		k = random.sample(range(len(hopfield_graph.nodes)), 1)[0]
-	add_edge(i, k, weight)
-	add_edge(k, i, weight)
-	#add_edge(i, k)
-	#add_edge(k, i)
+	add_edge(i, k)
+	add_edge(k, i)
 
 def rewired_hopfield(hopfield_graph, rewire_prob):
 	"""Given some hopfield_graph, rewires each edge (same protocol as in Watts - 
@@ -281,3 +278,61 @@ def clustering_matrix(hopfield_graph):
 			row[other_group] = count / possible_edges
 		cluster_mat[group] = row
 	return cluster_mat
+
+def hopfield_lattice(states, k, intersection = False):
+	"""Returns a graph where each node is connected to its k nearest neighbors.
+	A node's nearest neighbors are the nodes which have the highest magnitude edges
+	between each other (same notion as in the pruning rule). If intersection is true,
+	will only add edges where the nodes are mutual nearest neighbors."""
+	def nearest_neighbors(hop_graph):
+		"""Returns a list (using the same indicies as hop_graph.nodes) of sets where each
+		set is the indicies of that nodes nearest neighbors."""
+		def node_neighbors(i):
+			"""Returns a set that contains the indicies of i's k nearest neighbors."""
+			class Entry:
+				"""Class to hold items in the priority queue. Each object has an item
+				which will be some int (representing a node) and a priority (the absolute
+				value of the edge weight after training). Compares the items solely on priority."""
+				def __init__(self, item, priority):
+					self.item = item
+					self.priority = priority
+				def __lt__(self, other):
+					return self.priority < other.priority
+			neighbors = set()
+			pq = []
+			for j in range(len(hop_graph.nodes)):
+				ij_weight = hop_graph.full_weights[i][j] #gets weight of trained ij edge
+				#adds edge entry to the pq. negative mag. since this is a min pq
+				pq.append(Entry(j, -abs(ij_weight)))
+			heapq.heapify(pq) #heapifies the array so we can pop the k top edges
+			for _ in range(k):
+				neighbor = heapq.heappop(pq)
+				neighbors.add(neighbor.item)
+			return neighbors
+
+		res = [] #what we're going to return
+		for i in range(len(hop_graph.nodes)):
+			res.append(node_neighbors(i))
+		return res
+
+	def make_edge(i, j):
+		"""Makes an edge (i, j) in the graph, and trains the edge weight."""
+		hop_graph.adj_matrix[i][j] = 1
+		hop_graph.adj_matrix[j][i] = 1
+		hop_graph.train_edge(i, j)
+
+	nodes = [Graph.Node(0, []) for _ in range(len(states[0]))]
+	hop_graph = HopfieldGraph(Graph(nodes), states) #makes an empty hop graph to serve as the blank slate
+	hop_graph.train()
+	neighbors = nearest_neighbors(hop_graph)
+
+	for i in range(len(states[0])):
+		for j in neighbors[i]:
+			#iterates over all pairs of nearest neighbors
+			if intersection:
+				if i not in neighbors[j]:
+					continue
+			make_edge(i, j)
+	hop_graph.set_node_attributes() #sets all node attributes correctly
+	return hop_graph
+

@@ -177,6 +177,4 @@ def deg_perf_corr(nodes, edges, num_states,runs = 1000):
 		perf = np.mean(np.array(perf), axis = 0) #sums over all perf runs
 		corr = np.corrcoef(perf, ph.degree_dist())[0][1]
 		corrs.append(corr)
-	return np.nanmean(corrs), np.nanstd(corrs)
-
-
+	return np.nanmean(corrs), np.nanstd(corrs), ph
