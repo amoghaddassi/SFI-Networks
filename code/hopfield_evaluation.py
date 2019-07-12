@@ -35,7 +35,7 @@ def vi_performance_metric(hopfield_graph):
 	return min([variation_of_information(steady_state_str, bit_list_to_string(stored_state))
 			for stored_state in hopfield_graph.stored_states])
 
-def overlap_performance_metric(hopfield_graph, type = "stability", nonneg = False, p = .2, by_node = False):
+def overlap_performance_metric(hopfield_graph, type = "stability", p = .2, by_node = False):
 	"""Measures the overlap performance metric for each of the stored states and returns the average.
 	If stability is true, runs the graph from the stored state at each iteration. If false, measures 
 	retrievability by running the graph from a 25% maligned state. p is percent to flip for high_deg.
@@ -51,13 +51,13 @@ def overlap_performance_metric(hopfield_graph, type = "stability", nonneg = Fals
 			hopfield_graph.set_node_vals(flip_high_deg(hopfield_graph, state, p))
 		steady_state = fixed_point(hopfield_graph, hopfield_graph.dynamic)
 		state_perf = []
+		if [1 - b for b in steady_state] == state: #means we have a flipped state so we adjust
+			steady_state = [1 - b for b in steady_state]
 		for i in range(len(state)):
 			if state[i] == steady_state[i]:
 				state_perf.append(1)
-			elif nonneg:
-				state_perf.append(0)
 			else:
-				state_perf.append(-1)
+				state_perf.append(0)
 		perf.append(state_perf)
 	#perf is now a 2d matrix where the ith col is the matching results of the ith node
 	np_arr = np.array(perf) #converts to numpy matrix to take columnwise mean
@@ -70,19 +70,19 @@ def overlap_performance_metric(hopfield_graph, type = "stability", nonneg = Fals
 def stability_performance_metric(hopfield_graph):
 	return overlap_performance_metric(hopfield_graph)
 
-def retrievability_performance_metric(hopfield_graph, nonneg = False, p = .25):
-	return overlap_performance_metric(hopfield_graph, "retrievability", nonneg, p = p)
+def retrievability_performance_metric(hopfield_graph, nonneg = True, p = .25):
+	return overlap_performance_metric(hopfield_graph, "retrievability", p = p)
 
 def high_degree_errors_performance_metric(hopfield_graph, nonneg = False, p = .15):
 	return overlap_performance_metric(hopfield_graph, "high_deg_errors", p = p)
 
-def hopfield_performance(hopfield_graph, metric = vi_performance_metric, runs = 100, nonneg = False, p = .2):
+def hopfield_performance(hopfield_graph, metric = vi_performance_metric, runs = 100, p = .2):
 	"""Uses the metric function to get the performance of a graph on a single run, and 
 	returns the average metric over all runs."""
 	total_perf = 0
 	for _ in range(runs):
 		if metric is retrievability_performance_metric or metric is high_degree_errors_performance_metric:
-			total_perf += metric(hopfield_graph, nonneg = nonneg, p = p)
+			total_perf += metric(hopfield_graph, p = p)
 		else:
 			total_perf += metric(hopfield_graph)
 	return total_perf / runs

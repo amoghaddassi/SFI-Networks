@@ -39,6 +39,10 @@ def asynch_update(graph, dynamic, iterations=1, print_states = False):
 		if print_states:
 			print(graph.state())
 
+def synch_update(graph, dynamic):
+	"""Runs the dynamic on the graph's node values at the present state, and updates all values together."""
+	pass
+
 def fixed_point(graph, dynamic, update = asynch_update,
 	max_iter = 1000, num_consec_threshold = 5, tolerance = .05):
 	"""Runs the update rule with the given dynamic and graph

@@ -144,4 +144,14 @@ class HopfieldGraph(Graph):
 	def degree_dist(self):
 		"""Returns a list of the degrees of all nodes."""
 		return [len(node.in_edges) for node in self.nodes]
+
+	def energy(self, state = None):
+		"""Returns the energy of state for this network. If no state is provided, uses the current state."""
+		if state is None:
+			state = [node.val for node in self.nodes]
+		tot = 0
+		for i in range(len(state)):
+			for j in range(len(state)):
+				tot += self.weights[i][j] * (2*state[i] - 1) * (2*state[j] - 1)
+		return -1/2 * tot
 		
