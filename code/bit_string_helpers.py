@@ -8,9 +8,10 @@ def bit_list_to_string(lst):
 		n += str(b)
 	return n
 
-def flip_porition(state, p):
+def flip_porition(state, p = None, num_to_flip = None):
 	"""Flips p portion of bits in state."""
-	num_to_flip = int(p * len(state)) #rounds up how many to flip
+	if p is not None:
+		num_to_flip = int(p * len(state)) #rounds up how many to flip
 	pos_to_flip = random.sample(range(len(state)), num_to_flip) #chooses which indicies to flip
 	#flips the bits
 	res = state.copy()

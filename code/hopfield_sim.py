@@ -15,6 +15,13 @@ from bit_string_helpers import *
 from hopfield_models import *
 from hopfield_evaluation import *
 
+def save_data(filename, data):
+	"""Writes data (list of lists) to a csv file at filename."""
+	with open(filename, 'w') as file:
+		writer = csv.writer(file)
+		writer.writerows(data)
+	file.close()
+
 def hopfield_perf_sim(N, num_stored_states, graph_model,runs_per_edge_count = 100,
 	edge_iterator=None, filepath = "data/random_edges/vary_edges/", show_runs = True,
 	metrics = ["variation_of_information", "runtime"]):
@@ -26,8 +33,11 @@ def hopfield_perf_sim(N, num_stored_states, graph_model,runs_per_edge_count = 10
 	vary the edge counts during the simulation."""
 	if not edge_iterator:
 		edge_iterator = range(1, int(comb(N, 2) + 1))
+	#NAMING PROTOCOL: nodes_states_runs in folder of correct model
+	filename = filepath + str(N) + "_" + str(num_stored_states) + "_" + str(runs_per_edge_count) +".csv"
 	data = [["edges"] + metrics]
 	for edge_count in edge_iterator:
+		save_data(filename, data)
 		for _ in range(runs_per_edge_count):
 			hop_graph = graph_model(N, num_stored_states, edge_count)
 			stats = [edge_count]
@@ -36,10 +46,10 @@ def hopfield_perf_sim(N, num_stored_states, graph_model,runs_per_edge_count = 10
 				vi = hopfield_performance(hop_graph, metric = vi_performance_metric)
 				stats.append(vi)
 			if "retrievability" in metrics:
-				retrievability = hopfield_performance(hop_graph, metric = retrievability_performance_metric)
+				retrievability = hopfield_performance(hop_graph, runs = 15,metric = retrievability_performance_metric)
 				stats.append(retrievability)
 			if "stability" in metrics:
-				stability = hopfield_performance(hop_graph, metric = stability_performance_metric)
+				stability = hopfield_performance(hop_graph, runs = 15, metric = stability_performance_metric)
 				stats.append(stability)
 			if "runtime" in metrics:
 				rt = runtime(hop_graph)
@@ -47,12 +57,7 @@ def hopfield_perf_sim(N, num_stored_states, graph_model,runs_per_edge_count = 10
 			if show_runs:
 				print(stats)
 			data.append(stats)		
-	#NAMING PROTOCOL: nodes_states_runs in folder of correct model
-	filename = filepath + str(N) + "_" + str(num_stored_states) + "_" + str(runs_per_edge_count) +".csv"
-	with open(filename, 'w') as csvFile:
-	    writer = csv.writer(csvFile)
-	    writer.writerows(data)
-	csvFile.close()
+	save_data(filename, data)
 
 def hopfield_vary_patterns_sim(N, num_edges, graph_model, runs_per_states = 100, num_states_iterator = None,
 	filepath = "data/random_edges/vary_patterns/", show_runs = True):
@@ -71,10 +76,7 @@ def hopfield_vary_patterns_sim(N, num_edges, graph_model, runs_per_states = 100,
 				print(stats)
 			data.append(stats)
 	filename = filepath + str(N) + "_" + str(num_edges) + "_" + str(runs_per_states) + ".csv"
-	with open(filename, 'w') as csvFile:
-		writer = csv.writer(csvFile)
-		writer.writerows(data)
-	csvFile.close()
+	save_data(filename, data)
 
 def hopfield_rewiring_sim(graph, runs_per_beta = 10, beta_iterator = None, 
 	filepath = "data/pruned_edges/rewire/", metrics = ["retrievability"], show_runs = True):
@@ -105,10 +107,7 @@ def hopfield_rewiring_sim(graph, runs_per_beta = 10, beta_iterator = None,
 
 	#NAMING PROTOCOL: nodes_states_edges_runs in folder of correct model
 	filename = filepath + str(len(graph.nodes)) + "_" + str(len(graph.stored_states)) + "_" + str(graph.num_edges()) + "_" + str(runs_per_beta) +".csv"
-	with open(filename, 'w') as csvFile:
-	    writer = csv.writer(csvFile)
-	    writer.writerows(data)
-	csvFile.close()
+	save_data(filename, data)
 
 def hopfield_edges_states_sim(N, num_stored_states, graph_model, runs = 1000,
 	filepath = "data/pruned_edges/vary_edges_states/", show_runs = True, 
@@ -124,10 +123,7 @@ def hopfield_edges_states_sim(N, num_stored_states, graph_model, runs = 1000,
 		run_data_with_edges = [[edges] + d for d in run_data]
 		data.extend(run_data_with_edges[1:])
 	filename = filepath + str(N) + "_" + str(num_stored_states) + "_" + str(runs) +".csv"
-	with open(filename, 'w') as csvFile:
-		writer = csv.writer(csvFile)
-		writer.writerows(data)
-	csvFile.close()
+	save_data(filename, data)
 
 def hopfield_related_states_sim(N, num_stored_states, graph_model, num_edges,runs_per_p = 100,
 	p_iterator = range(0, 51, 5), filepath = "data/random_edges/vary_states/", show_runs = True,
@@ -160,10 +156,7 @@ def hopfield_related_states_sim(N, num_stored_states, graph_model, num_edges,run
 	#NAMING PROTOCOL: nodes_states_runs in folder of correct model
 	if save_data:
 		filename = filepath + str(N) + "_" + str(num_stored_states) + "_" + str(num_edges) + "_" + str(runs_per_p) +".csv"
-		with open(filename, 'w') as csvFile:
-		    writer = csv.writer(csvFile)
-		    writer.writerows(data)
-		csvFile.close()
+		save_data(filename, data)
 	else: return data
 
 def hopfield_match_coeff_sim(N, num_stored_states, num_edges, graph_model, 
@@ -183,7 +176,23 @@ def hopfield_match_coeff_sim(N, num_stored_states, num_edges, graph_model,
 					match_coeff_data.append([in_graph, match_coeff, edge_weight])
 	
 	filename = filepath + "random_edge_null_match_coeff_" + str(N) + "_" + str(num_stored_states) + "_" + str(runs) +".csv"
-	with open(filename, 'w') as csvFile:
-		writer = csv.writer(csvFile)
-		writer.writerows(match_coeff_data)
-	csvFile.close()
+	save_data(filename, match_coeff_data)
+
+def hopfield_state_energy_sim(N, num_stored_states, num_edges, graph_model,
+	flip_iterator = None, runs_per_flip = 100, filepath = "data/pruned_edges/flip_energy/"):
+	"""Outputs a two column csv. Col1 is number of flipped bits from the first stored state in 
+	a fixed network with the given model. Col2 is the energy of that state."""
+	if flip_iterator is None:
+		flip_iterator = range(1, int(.25 * N))
+	states = [random_state(N) for _ in range(num_stored_states)]
+	hop_graph = graph_model(states, num_edges)
+	data = [["flipped bits", "energy"], [0, hop_graph.energy(states[0])]]
+	for f in flip_iterator:
+		for _ in range(runs_per_flip):
+			flipped_state = flip_porition(states[0], num_to_flip = f)
+			stats = [f, hop_graph.energy(flipped_state)]
+			print(stats)
+			data.append(stats)
+
+	filename = filepath + "flipped_state_energy_" + str(N) + "_" + str(num_stored_states) + "_" + str(num_edges) + ".csv"
+	save_data(filename, data)

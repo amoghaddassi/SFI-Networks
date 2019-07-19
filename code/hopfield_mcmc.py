@@ -10,7 +10,7 @@ import numpy as np
 import random
 
 def metropolis_hastings(patterns, num_edges, fp_threshold = 20, 
-	max_iter = 1000, rewires_per_iter = 1):
+	max_iter = 1000, rewires_per_iter = 1, beta = .3):
 	"""The main runner function of the file. Returns the result of running MCMC to find
 	the optiminal graph topology given some set of patterns and number of edges."""
 	def random_edge(graph):
@@ -28,6 +28,8 @@ def metropolis_hastings(patterns, num_edges, fp_threshold = 20,
 		if prop > curr:
 			#always accept when the proposal is better than current
 			return True
+		else:
+			return False
 		p = np.exp(-1 * beta * (prop / curr))
 		return np.random.binomial(1, p) == 1
 	
@@ -35,7 +37,9 @@ def metropolis_hastings(patterns, num_edges, fp_threshold = 20,
 	graph = random_edges(len(patterns[0]), num_edges)
 	hop_graph = HopfieldGraph(graph, patterns) #the running variable for the current optima
 	hop_graph.train()
-	curr_score = hopfield_performance(hop_graph, metric = retrievability_performance_metric, nonneg = True)
+	#makes hop_graph pruned:
+	hop_graph = pruned_hopfield(patterns, num_edges)
+	curr_score = hopfield_performance(hop_graph, metric = retrievability_performance_metric, runs = 2)
 	old_score = curr_score #for fixed point checking
 	
 	while curr_score < .1:
@@ -43,7 +47,7 @@ def metropolis_hastings(patterns, num_edges, fp_threshold = 20,
 		graph = random_edges(len(patterns[0]), num_edges)
 		hop_graph = HopfieldGraph(graph, patterns) #the running variable for the current optima
 		hop_graph.train()
-		curr_score = hopfield_performance(hop_graph, metric = retrievability_performance_metric, nonneg = True)
+		curr_score = hopfield_performance(hop_graph, metric = retrievability_performance_metric, runs = 2)
 		print(curr_score)
 	
 	best_graph, best_score = hop_graph, curr_score #track the running best
@@ -56,8 +60,8 @@ def metropolis_hastings(patterns, num_edges, fp_threshold = 20,
 			i, j = random_edge(hop_graph)
 			rewire(i, j, prop)
 		#moves to prop according to acceptance function
-		prop_score = hopfield_performance(prop, metric = retrievability_performance_metric, nonneg = True)
-		if accept(curr_score, prop_score) or fp_count >= fp_threshold:
+		prop_score = hopfield_performance(prop, metric = retrievability_performance_metric, runs = 2)
+		if accept(curr_score, prop_score, beta):
 			hop_graph = prop
 			curr_score = prop_score
 			fp_count = 0

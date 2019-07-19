@@ -76,7 +76,7 @@ def retrievability_performance_metric(hopfield_graph, nonneg = True, p = .25):
 def high_degree_errors_performance_metric(hopfield_graph, nonneg = False, p = .15):
 	return overlap_performance_metric(hopfield_graph, "high_deg_errors", p = p)
 
-def hopfield_performance(hopfield_graph, metric = vi_performance_metric, runs = 100, p = .2):
+def hopfield_performance(hopfield_graph, metric = vi_performance_metric, runs = 15, p = .2):
 	"""Uses the metric function to get the performance of a graph on a single run, and 
 	returns the average metric over all runs."""
 	total_perf = 0
@@ -97,23 +97,6 @@ def runtime(hopfield_graph, runs = 100):
 		fixed_point(hopfield_graph, hopfield_graph.dynamic)
 		total_time += time.time() - start
 	return total_time / runs
-
-def random_edges_for_sim(N, num_stored_states, edge_count):
-	g = random_edges(N, edge_count)
-	return random_hopfield(N, num_stored_states, g)
-
-def pruned_edges_for_sim(N, num_stored_states, edge_count):
-	patterns = [random_state(N) for _ in range(num_stored_states)]
-	return pruned_hopfield(patterns, edge_count)
-
-def random_edges_for_p_sim(patterns, edges):
-	g = random_edges(len(patterns[0]), edges)
-	hop_graph = HopfieldGraph(g, patterns)
-	hop_graph.train()
-	return hop_graph
-
-def pruned_edges_for_p_sim(patterns, edges):
-	return pruned_hopfield(patterns, edges)
 
 def small_world_coeff(hopfield_graph):
 	"""Returns the small world coefficient omega (Lrand / L - C/Clatt) of the given graph."""
@@ -178,3 +161,17 @@ def deg_perf_corr(nodes, edges, num_states,runs = 1000):
 		corr = np.corrcoef(perf, ph.degree_dist())[0][1]
 		corrs.append(corr)
 	return np.nanmean(corrs), np.nanstd(corrs), ph
+
+def stability_metric_for_memory_load(hopfield_graph):
+	"""Returns the average of percent of nodes that are not stable from stored states across
+	all stored states. Used in particular as a comprable measure to the analytic stabilty result."""
+	perf = []
+	for state in hopfield_graph.stored_states:
+		hopfield_graph.set_node_vals(state)
+		asynch_update(hopfield_graph, hopfield_graph.dynamic)
+		matches = 0
+		for i in range(len(state)):
+			if state[i] == hopfield_graph.nodes[i].val:
+				matches += 1
+		perf.append(matches / len(state))
+	return np.average(perf)

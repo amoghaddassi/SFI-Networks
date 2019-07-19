@@ -87,7 +87,8 @@ def pruned_hopfield(patterns, edges, graph = None, shuffle = True):
 		hop_net = HopfieldGraph(graph, patterns)
 		hop_net.train()
 	else:
-		hop_net = graph
+		N = len(graph.nodes)
+		hop_net = graph.copy()
 	#add all the edges to a priority queue (only looking at bottom porition of adj. mat.)
 	pq = []
 	for i in range(N):
@@ -336,3 +337,19 @@ def hopfield_lattice(states, k, intersection = False):
 	hop_graph.set_node_attributes() #sets all node attributes correctly
 	return hop_graph
 
+def random_edges_for_sim(N, num_stored_states, edge_count):
+	g = random_edges(N, edge_count)
+	return random_hopfield(N, num_stored_states, g)
+
+def pruned_edges_for_sim(N, num_stored_states, edge_count):
+	patterns = [random_state(N) for _ in range(num_stored_states)]
+	return pruned_hopfield(patterns, edge_count)
+
+def random_edges_for_p_sim(patterns, edges):
+	g = random_edges(len(patterns[0]), edges)
+	hop_graph = HopfieldGraph(g, patterns)
+	hop_graph.train()
+	return hop_graph
+
+def pruned_edges_for_p_sim(patterns, edges):
+	return pruned_hopfield(patterns, edges)
