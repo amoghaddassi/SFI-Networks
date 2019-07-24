@@ -175,3 +175,9 @@ def stability_metric_for_memory_load(hopfield_graph):
 				matches += 1
 		perf.append(matches / len(state))
 	return np.average(perf)
+
+def memory_load(hopfield_graph):
+	"""Returns the proportionality constant between the average degree of all nodes in the
+	network and number of stored patterns."""
+	avg_deg = (2 * hopfield_graph.num_edges()) / len(hopfield_graph.nodes)
+	return len(hopfield_graph.stored_states) / avg_deg

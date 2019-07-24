@@ -5,6 +5,7 @@ from graphs.HopfieldGraph import *
 from bit_string_helpers import *
 from random_graphs import *
 from hopfield_evaluation import *
+from graph_utilities import *
 
 import numpy as np
 import random
@@ -110,53 +111,6 @@ def pruned_hopfield(patterns, edges, graph = None, shuffle = True):
 		hop_net.adj_matrix[edge[1]][edge[0]] = 0
 	hop_net.set_node_attributes() #adjusts all the node attributes appropriately
 	return hop_net
-
-def rewire(i, j, hopfield_graph):
-	"""Changes edge (i, j) to edge (i, k) st i != k, the edge doesn't already exist, and that
-	the edge has the same signed edge weight as (i, j) (doesn't make edges that have 0 weight)."""
-	def remove_edge(i, j):
-		"""Returns the abs of the original weight to set the value of the new edge."""
-		weight = hopfield_graph.weights[i][j]
-		hopfield_graph.adj_matrix[i][j] = 0
-		hopfield_graph.adj_matrix[j][i] = 0
-		hopfield_graph.weights[i][j] = 0
-		hopfield_graph.weights[j][i] = 0
-
-	def add_edge(i, j, w = None):
-		"""Makes the edge (i, j) with weight w."""
-		hopfield_graph.adj_matrix[i][j] = 1
-		hopfield_graph.adj_matrix[j][i] = 1
-		#trains the edge to get the sign
-		hopfield_graph.train_edge(i, j)
-		if w != None:
-			sign = np.sign(hopfield_graph.weights[i][j])
-			hopfield_graph.weights[i][j] = sign * w
-			hopfield_graph.weights[j][i] = sign * w
-
-	def zero_edge(i, j):
-		"""Returns true if the trained edge (i, j) has weight 0."""
-		#makes the edge.
-		hopfield_graph.adj_matrix[i][j] = 1
-		hopfield_graph.adj_matrix[j][i] = 1
-		#trains the edge and checks if 0
-		hopfield_graph.train_edge(i, j)
-		zero = hopfield_graph.weights[i][j] == 0
-		#removes the edge
-		hopfield_graph.adj_matrix[i][j] = 0
-		hopfield_graph.adj_matrix[j][i] = 0
-		#resets edge
-		hopfield_graph.train_edge(i, j)
-		return zero
-
-	remove_edge(i, j)
-	remove_edge(j, i)
-	k = random.sample(range(len(hopfield_graph.nodes)), 1)[0]
-	#commented code lines correspond to using the fancy weighting model or not.
-	while i == k or hopfield_graph.adj_matrix[i][k] != 0 or zero_edge(i, k):
-	#while i == k or hopfield_graph.adj_matrix[i][k] != 0:
-		k = random.sample(range(len(hopfield_graph.nodes)), 1)[0]
-	add_edge(i, k)
-	add_edge(k, i)
 
 def rewired_hopfield(hopfield_graph, rewire_prob):
 	"""Given some hopfield_graph, rewires each edge (same protocol as in Watts - 
