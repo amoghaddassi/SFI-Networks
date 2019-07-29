@@ -123,26 +123,6 @@ def rewired_hopfield(hopfield_graph, rewire_prob):
 				rewire(i, j, hopfield_graph)
 	hopfield_graph.set_node_attributes() #adjusts the graph's nodes after the rewiring
 
-def node_groups(hopfield_graph):
-	"""Given a graph, returns a dict where the key is the pattern and the value is a list of nodes
-	that belong to that pattern group."""
-	groups = dict()
-	#iterate over all nodes and collect the pattern group
-	for i in range(len(hopfield_graph.nodes)):
-		pattern = []
-		for state in hopfield_graph.stored_states:
-			pattern.append(state[i])
-		pattern_str = bit_list_to_string(pattern)
-		#if the ndoes pattern or flipped pattern is already in the dict, add to appropriate bucket.
-		if pattern_str in groups:
-			groups[pattern_str].append(hopfield_graph.nodes[i])
-		elif flip_bits(pattern_str) in groups:
-			groups[flip_bits(pattern_str)].append(hopfield_graph.nodes[i])
-		#else make a new bucket
-		else:
-			groups[pattern_str] = [hopfield_graph.nodes[i]]
-	return groups
-
 def hopfield_sbm(edge_probs, states, num_edges):
 	"""edge_probs: dict of dicts where both have keys that are the group's orientation patterns
 	and values (in the inner dicts) that are the probabilities of making an edge between groups."""
@@ -200,39 +180,6 @@ def hopfield_sbm(edge_probs, states, num_edges):
 	#trains the graph according to the updated adj matrix
 	hop_graph.train()
 	return hop_graph
-
-def clustering_matrix(hopfield_graph):
-	"""Given a Hopfield graph, returns the matrix (2^M-1 * 2^M-1) of probabilities of an edge
-	existing between any two groups. Define the groups as usual. If norm_group_size, will normalize
-	all probabilities wrt to the group size of each cluster."""
-	group_cache = dict()
-	def get_group(node):
-		"""Returns the group of the given node assuming groups has been defined."""
-		if node not in group_cache:
-			for group, nodes in groups.items():
-				if node in nodes:
-					group_cache[node] = group
-					break
-		return group_cache[node]
-
-	groups = node_groups(hopfield_graph)
-	cluster_mat = dict()
-	for group, nodes in groups.items(): #iterates over all groups and counts all edges to other groups.
-		edge_probs = {g: 0 for g in groups.keys()}
-		for node in nodes: #counts all the edges and tallys which group the other node is in.
-			for adj in node.in_edges:
-				edge_probs[get_group(adj)] += 1
-		#makes each count a percent of edges that could possibly exist between the two groups
-		row = {} 
-		for other_group, count in edge_probs.items():
-			other_size = len(groups[other_group])
-			if other_group == group:
-				possible_edges = other_size * (other_size - 1)
-			else:
-				possible_edges = other_size * len(nodes)
-			row[other_group] = count / possible_edges
-		cluster_mat[group] = row
-	return cluster_mat
 
 def hopfield_lattice(states, k, intersection = False):
 	"""Returns a graph where each node is connected to its k nearest neighbors.

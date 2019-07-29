@@ -44,11 +44,12 @@ def synch_update(graph, dynamic):
 	pass
 
 def fixed_point(graph, dynamic, update = asynch_update,
-	max_iter = 1000, num_consec_threshold = 5, tolerance = .05):
+	max_iter = 1000, num_consec_threshold = 2, tolerance = .05):
 	"""Runs the update rule with the given dynamic and graph
 	till we reach a fixed state or max iterations is reached.
 	Defines a fixed point as a state that is repeated threshold
 	number of times. Returns false is no such state is found."""
+	#have a boolean of if anyone changed instead of comparing states directly
 	def soft_equals(lst1, lst2, tolerance):
 		for i1, i2 in zip(lst1, lst2):
 			if abs(i1 - i2) > tolerance:

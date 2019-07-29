@@ -176,8 +176,121 @@ def stability_metric_for_memory_load(hopfield_graph):
 		perf.append(matches / len(state))
 	return np.average(perf)
 
+
+def node_groups(hopfield_graph, size = False):
+	"""Given a graph, returns a dict where the key is the pattern and the value is a list of nodes
+	that belong to that pattern group. If size is True, returns the size of each group, not list of nodes."""
+	groups = dict()
+	#iterate over all nodes and collect the pattern group
+	for i in range(len(hopfield_graph.nodes)):
+		pattern = []
+		for state in hopfield_graph.stored_states:
+			pattern.append(state[i])
+		pattern_str = bit_list_to_string(pattern)
+		#if the ndoes pattern or flipped pattern is already in the dict, add to appropriate bucket.
+		if pattern_str in groups:
+			groups[pattern_str].append(hopfield_graph.nodes[i])
+		elif flip_bits(pattern_str) in groups:
+			groups[flip_bits(pattern_str)].append(hopfield_graph.nodes[i])
+		#else make a new bucket
+		else:
+			groups[pattern_str] = [hopfield_graph.nodes[i]]
+	if size:
+		res = {}
+		for k, v in groups.items():
+			res[k] = len(v)
+		return res
+	return groups
+
+def clustering_matrix(hopfield_graph, counts = False):
+	"""Given a Hopfield graph, returns the matrix (2^M-1 * 2^M-1) of probabilities of an edge
+	existing between any two groups. Define the groups as usual. If norm_group_size, will normalize
+	all probabilities wrt to the group size of each cluster."""
+	group_cache = dict()
+	def get_group(node):
+		"""Returns the group of the given node assuming groups has been defined."""
+		if node not in group_cache:
+			for group, nodes in groups.items():
+				if node in nodes:
+					group_cache[node] = group
+					break
+		return group_cache[node]
+
+	groups = node_groups(hopfield_graph)
+	cluster_mat = dict()
+	for group, nodes in groups.items(): #iterates over all groups and counts all edges to other groups.
+		edge_probs = {g: 0 for g in groups.keys()}
+		for node in nodes: #counts all the edges and tallys which group the other node is in.
+			for adj in node.in_edges:
+				edge_probs[get_group(adj)] += 1
+		if counts:
+			#means we don't normalize and just use the edge_probs as the row
+			cluster_mat[group] = edge_probs
+			continue
+		#makes each count a percent of edges that could possibly exist between the two groups
+		row = {} 
+		for other_group, count in edge_probs.items():
+			other_size = len(groups[other_group])
+			if other_group == group:
+				possible_edges = other_size * (other_size - 1)
+			else:
+				possible_edges = other_size * len(nodes)
+			row[other_group] = count / possible_edges
+		cluster_mat[group] = row
+	return cluster_mat
+
 def memory_load(hopfield_graph):
 	"""Returns the proportionality constant between the average degree of all nodes in the
 	network and number of stored patterns."""
 	avg_deg = (2 * hopfield_graph.num_edges()) / len(hopfield_graph.nodes)
 	return len(hopfield_graph.stored_states) / avg_deg
+
+def prop_in_group_edges(hopfield_graph):
+	"""Given a hopfield graph, proportion of possible in group edges that are in the graph."""
+	clustering_mat = clustering_matrix(hopfield_graph)
+	in_group_props = []
+	for key, value in clustering_mat.items():
+		in_group_props.append(value[key]) #adds the diagonal term of the clustering matrix
+	return np.average(in_group_props)
+
+def edge_magnitude_dist(hopfield_graph):
+	"""Given a hopfield graph, returns a dictionary whose keys are all the possible edge magnitudes
+	between nodes, and whose values are the proportion of edges of that magnitude over the number of 
+	possible edges of that magnitude."""
+	def group_diff(g1, g2):
+		"""Given the bit strings of two nodes, calculates magnitude of the edge."""
+		weight = 0
+		for b1, b2 in zip(list(g1), list(g2)):
+			#iterates over the pairwise bits of the two groups
+			b1, b2 = int(b1), int(b2) #makes them ints for easy calc
+			weight += (2 * b1 - 1) * (2 * b2 - 1) #adds 1 for matching bits, -1 otherwise
+		return abs(weight)
+	group_sizes = node_groups(hopfield_graph, size = True)
+	edges = dict() #symbolic numerator for the result
+	possible_edges = dict() #symbolic denominator
+	edge_counts = clustering_matrix(hopfield_graph, counts = True)
+	for k1, v1 in edge_counts.items():
+		for k2, v2 in v1.items():
+			#iterate over all the possible node group pairs
+			diff = group_diff(k1, k2)
+			if diff not in edges:
+				edges[diff] = 0
+			edges[diff] += v2 #adds number of existing edges to the diff group
+			if diff not in possible_edges:
+				possible_edges[diff] = 0
+			if k1 == k2:
+				#means we add n(n -1)possible edges (n being group size of k)
+				possible_edges[diff] += group_sizes[k1] * (group_sizes[k1] - 1)
+			else:
+				#means we multiply group sizes to get possible edges
+				possible_edges[diff] += group_sizes[k1] * group_sizes[k2]
+	#Now have to do the "division" btw edges and possible_edges
+	res = dict()
+	for k, v in edges.items():
+		res[k] = v / possible_edges[k]
+	return res
+
+
+
+
+

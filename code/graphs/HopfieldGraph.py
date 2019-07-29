@@ -3,11 +3,20 @@ from graphs.Graph import *
 import numpy as np
 import networkx as nx
 import copy
+import json
 
 class HopfieldGraph(Graph):
 	"""Given an existing graph topology with N nodes, and some set of orientations
 	(assuming binary valued nodes), trains the network using the Hopfield learning rule."""
-	def __init__(self, graph, states, thresholds = None, nodes = None, adj_mat = None):
+	def __init__(self, graph = None, states = None, thresholds = None, nodes = None, adj_mat = None,
+		filename = None):
+		if filename != None:
+			#if we are given a filename, we set all atrributes based on the file
+			self.read(filename)
+			self.nodes = [Graph.Node(0, []) for _ in range(len(self.stored_states[0]))]
+			self.set_node_attributes()
+			self.thresholds = [0 for _ in range(len(self.nodes))]
+			return
 		if graph == None:
 			self.nodes = nodes
 		else:
@@ -154,4 +163,22 @@ class HopfieldGraph(Graph):
 			for j in range(len(state)):
 				tot += self.weights[i][j] * (2*state[i] - 1) * (2*state[j] - 1)
 		return -1/2 * tot
+
+	def save(self, filename):
+		"""Saves a json file containing self's weights matrix and stored states to filename."""
+		outdict = dict()
+		outdict["states"] = self.stored_states
+		outdict["weights"] = self.weights
+		outdict["adj_matrix"] = self.adj_matrix
+		with open(filename, 'w') as file:
+			json.dump(outdict, file)
+
+	def read(self, filename):
+		"""Given a json text file of the type saved by filename, makes self that graph by setting the
+		stored states and weight matrix appropriately."""
+		with open(filename) as jsonFile:
+			data = json.load(jsonFile)
+			self.weights = data["weights"]
+			self.adj_matrix = data["adj_matrix"]
+			self.stored_states = data["states"]
 		
